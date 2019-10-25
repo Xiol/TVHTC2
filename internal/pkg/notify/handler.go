@@ -58,7 +58,7 @@ func (h *Handler) createPushoverNotifications(entity *media.Entity) ([]Notifier,
 				return nil, fmt.Errorf("notify: error compiling Pushover regex '%s': %s", rgx, err)
 			}
 
-			if testRegex.MatchString(entity.Title) {
+			if testRegex.MatchString(strings.ToLower(entity.Title)) {
 				notifiers = append(notifiers, pushover.NewMessage(h.pushoverToken, conf.Key, entity))
 				haveMatch = true
 				log.WithFields(log.Fields{
