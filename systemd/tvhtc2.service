@@ -1,0 +1,17 @@
+[Install]
+WantedBy=multi-user.target
+
+[Unit]
+Description=TVHeadend Transcoding and Notification Service v2
+Documentation=http://github.com/Xiol/TVHTC2 file:/etc/tvhtc2/tvhtc2.yml
+
+[Service]
+ExecStart=/usr/local/bin/tvhtc2
+WorkingDirectory=/var/lib/tvhtc2
+RuntimeDirectory=tvhtc2
+User=hts
+Group=video
+TimeoutStopSec=2
+Restart=always
+KillMode=control-group
+PrivateTmp=true

@@ -1,0 +1,37 @@
+state_path: /var/lib/tvhtc2/state.json
+socket_path: /run/tvhtc2/tvhtc2.socket
+
+pushover:
+  app_token: pushoverapptoken
+
+transcoding:
+  keep_originals: false
+  only_sd: true
+  trim_path: /srv/storage/media
+  audio_config: -c:a libmp3lame -q:a 3
+  video_config: -vf yadif=1 -c:v libx264 -preset veryfast -crf 21 -c:a ac3 -b:a 192k -sn
+
+notifications:
+  pushover:
+    - name: foo
+      default: true
+      key: pushover_user_key
+      notify:
+        - "dragons.+den"
+        - "would.i.lie.to.you.*"
+        - "8.out.of.10.cats.*"
+        - "the.last.leg"
+
+    - name: bar
+      default: false
+      key: pushover_user2_key
+      notify:
+        - "coronation.street"
+        - "eastenders"
+        - "hollyoaks"
+        - "emmerdale"
+        - "dragons.+den"
+        - "would.i.lie.to.you.*"
+        - "8.out.of.10.cats.*"
+        - "broadchurch"
+        - "vera"
