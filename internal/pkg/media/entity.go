@@ -132,7 +132,7 @@ func (e *Entity) tempFilename() string {
 		ext = ".mp3"
 	}
 
-	tmpPath := filepath.Join(dir, uuid.New().String()+"."+ext)
+	tmpPath := filepath.Join(dir, uuid.New().String()+ext)
 	log.WithField("path", tmpPath).Debug("media: temporary path for encoding media")
 	return tmpPath
 }
