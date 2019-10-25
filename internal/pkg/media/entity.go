@@ -161,8 +161,15 @@ func (e *Entity) cleanup() error {
 	if e.Media != MEDIA_AUDIO {
 		return nil
 	}
+
 	log.WithField("path", e.Path).Info("media: removing original file")
-	return os.Remove(e.Path)
+	if err := os.Remove(e.Path); err != nil {
+		return err
+	}
+
+	// Overwrite file path with the corrected path for an MP3
+	e.Path = strings.Replace(e.Path, filepath.Ext(e.Path), ".mp3", -1)
+	return nil
 }
 
 func (e *Entity) abort() error {
