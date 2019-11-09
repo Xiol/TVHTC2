@@ -243,7 +243,7 @@ func (e *Entity) Transcode() error {
 
 	start := time.Now()
 	e.Stats.CommandStdout, err = cmd.CombinedOutput()
-	e.Stats.Duration = time.Now().Sub(start).Round(time.Second)
+	e.Stats.Duration = time.Now().Sub(start)
 	e.Stats.EndSizeBytes = e.getSizeBytes(tmpfile)
 
 	if err != nil {
