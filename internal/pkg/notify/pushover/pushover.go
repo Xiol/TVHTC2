@@ -52,7 +52,7 @@ func NewMessage(apiToken, user string, entity *media.Entity) Message {
 	sb.WriteString(strings.TrimSpace(entity.Description))
 	sb.WriteString("\n\n")
 	if entity.IsTranscodable() {
-		sb.WriteString(fmt.Sprintf("Transcode completed in %d minutes, size change %s->%s. Path: %s",
+		sb.WriteString(fmt.Sprintf("Transcode completed in %s minutes, size change %s->%s. Path: %s",
 			entity.Stats.Duration.Round(time.Minute), humanize.IBytes(entity.Stats.InitialSizeBytes),
 			humanize.IBytes(entity.Stats.EndSizeBytes), entity.Path))
 	} else {
