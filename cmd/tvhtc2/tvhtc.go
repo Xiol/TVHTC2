@@ -12,6 +12,10 @@ import (
 
 func main() {
 	log.SetLevel(log.DebugLevel)
+	fmt := log.TextFormatter{
+		DisableTimestamp: true,
+	}
+	log.SetFormatter(&fmt)
 	log.Warning("TVHTC2 starting up...")
 
 	if err := config.InitConfig(); err != nil {
