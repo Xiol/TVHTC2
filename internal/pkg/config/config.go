@@ -26,7 +26,7 @@ func InitConfig() error {
 
 	viper.WatchConfig()
 	viper.OnConfigChange(func(e fsnotify.Event) {
-		log.Info("config: file at '%s' changed", e.Name)
+		log.Infof("config: file at '%s' changed", e.Name)
 		if err := validateRegexps(); err != nil {
 			log.Fatalf(err.Error())
 		}
