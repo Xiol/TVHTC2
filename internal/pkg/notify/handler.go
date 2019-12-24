@@ -66,6 +66,7 @@ func (h *Handler) createPushoverNotifications(entity *media.Entity) ([]Notifier,
 					"regexp": rgx,
 					"title":  entity.Title,
 				}).Debug("notify: adding pushover notification")
+				break
 			}
 		}
 	}
