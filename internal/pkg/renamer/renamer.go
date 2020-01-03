@@ -88,9 +88,10 @@ func (r *Renamer) fixSpacing(path string) string {
 	timestamp := r.getTimestamp(path)
 	path = strings.Replace(path, timestamp, "", -1)
 
-	path = strings.Replace(path, "-", " ", -1)
 	path = strings.Replace(path, "_/", "/", -1)
+	path = strings.Replace(path, "-/", "/", -1)
 	path = strings.Replace(path, "_.", ".", -1)
+	path = strings.Replace(path, "-", " ", -1)
 	path = strings.Replace(path, "_", " - ", -1)
 	path = strings.Replace(path, "...", "", -1)
 

@@ -44,6 +44,10 @@ func TestRenamer_fixSpacing(t *testing.T) {
 			"/srv/storage/dvr/Dragons'-Den_-Pitches-to-Riches_/Dragons'-Den_-Pitches-to-Riches_2019-12-24T2000.mkv",
 			"/srv/storage/dvr/Dragons' Den - Pitches to Riches/Dragons' Den - Pitches to Riches - 2019-12-24T2000.mkv",
 		},
+		[]string{
+			"/srv/storage/dvr/James-Martin's-Home-Comforts-/James-Martin's-Home-Comforts2020-01-0121-30.mkv",
+			"/srv/storage/dvr/James Martin's Home Comforts/James Martin's Home Comforts - 2020-01-0121-30.mkv",
+		},
 	}
 
 	for _, test := range tests {

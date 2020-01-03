@@ -120,7 +120,11 @@ func (t *Transcoder) transcodeHandler() {
 		case job := <-t.state.JobCh:
 			e, err := media.NewEntity(*job.Details)
 			if err != nil {
-				log.WithError(err).Error("transcoder: error creating entity")
+				log.WithFields(log.Fields{
+					"error": err,
+					"path":  job.Details.Path,
+				}).Error("transcoder: error creating entity")
+				return
 			}
 
 			if err := e.Transcode(); err != nil {

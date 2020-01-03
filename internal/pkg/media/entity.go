@@ -64,7 +64,22 @@ func NewEntity(details Details) (*Entity, error) {
 		DestPath: details.Path,
 		renamer:  renamer.NewRenamer(),
 	}
+	e.basename = filepath.Base(e.Details.Path)
+
+	err := e.detectMediaType()
+	if err != nil {
+		return e, err
+	}
+
 	e.tempFilename()
+
+	log.WithFields(log.Fields{
+		"path":    e.Details.Path,
+		"channel": e.Details.Channel,
+		"title":   e.Details.Title,
+		"status":  e.Details.Status,
+	}).Info("media: new entity")
+
 	return e, nil
 }
 
@@ -142,9 +157,9 @@ func (e *Entity) tempFilename() {
 func (e *Entity) ffmpegArgs() []string {
 	var args string
 	if e.Media == MEDIA_VIDEO || e.Media == MEDIA_H264_VIDEO {
-		args = viper.GetString("transcoding.video_args")
+		args = viper.GetString("transcoding.video_config")
 	} else {
-		args = viper.GetString("transcoding.audio_args")
+		args = viper.GetString("transcoding.audio_config")
 	}
 	return strings.Split(args, " ")
 }
@@ -156,9 +171,14 @@ func (e *Entity) rename() error {
 		"old_path": e.Path,
 	}).Debug("rename results")
 
+	src := e.tmpfile
+	if e.skipTranscode {
+		src = e.Path
+	}
+
 	if viper.GetBool("transcoding.skip_rename") {
 		log.Debug("skip_rename is set, not perfoming full renaming")
-		os.Rename(e.tmpfile, e.DestPath)
+		os.Rename(src, e.DestPath)
 		return nil
 	}
 	e.DestPath = newPath
@@ -166,6 +186,7 @@ func (e *Entity) rename() error {
 	// Create the renamed directory, if needed
 	dir, _ := filepath.Split(e.DestPath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		log.WithField("directory", dir).Debug("creating destination directory")
 		if err := os.Mkdir(dir, 0755); err != nil {
 			return fmt.Errorf("media: unable to create directory %s: %s", dir, err)
 		}
@@ -175,16 +196,21 @@ func (e *Entity) rename() error {
 		"src":  e.Path,
 		"dest": e.DestPath,
 	}).Info("media: renaming transcoded file")
-	os.Rename(e.tmpfile, e.DestPath)
+
+	if err := os.Rename(src, e.DestPath); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func (e *Entity) cleanup() error {
 	// If we're skipping renames, and the media is a video, then we'll have nothing
-	// to clean up, return early.
-	if viper.GetBool("transcoding.skip_rename") && e.Media != MEDIA_AUDIO {
-		return nil
+	// to clean up, return early. If we've skipped transcoding but we're doing renames,
+	// then we'll also have nothing to cleanup, as the file will have been moved.
+	skipRename := viper.GetBool("transcoding.skip_rename")
+	if (skipRename && e.Media != MEDIA_AUDIO) || (!skipRename && e.skipTranscode) {
+		return e.cleanDir()
 	}
 
 	log.WithField("path", e.Path).Info("media: removing original file")
@@ -192,6 +218,10 @@ func (e *Entity) cleanup() error {
 		return fmt.Errorf("media: error removing original file: %s", err)
 	}
 
+	return e.cleanDir()
+}
+
+func (e *Entity) cleanDir() error {
 	dir, _ := filepath.Split(e.Path)
 	if e.dirEmpty(dir) {
 		log.WithField("directory", dir).Info("media: directory empty, cleaning up")
@@ -199,7 +229,6 @@ func (e *Entity) cleanup() error {
 			return fmt.Errorf("media: error removing empty directory: %s", err)
 		}
 	}
-
 	return nil
 }
 
@@ -219,6 +248,7 @@ func (e *Entity) dirEmpty(dir string) bool {
 }
 
 func (e *Entity) abort() error {
+	log.WithField("path", e.tmpfile).Info("media: aborting, cleaning up temporary transcode file")
 	return os.Remove(e.tmpfile)
 }
 
@@ -248,22 +278,27 @@ func (e *Entity) Ok() bool {
 }
 
 func (e *Entity) Transcode() error {
-	e.basename = filepath.Base(e.Details.Path)
-
-	log.WithFields(log.Fields{
-		"path":    e.Details.Path,
-		"channel": e.Details.Channel,
-		"title":   e.Details.Title,
-		"status":  e.Details.Status,
-	}).Info("media: new entity")
-
 	e.Stats.InitialSizeBytes = e.getSizeBytes(e.Details.Path)
 
-	err := e.detectMediaType()
-	if err != nil {
+	if err := e.doTranscode(); err != nil {
 		return err
 	}
 
+	if err := e.rename(); err != nil {
+		e.abort()
+		return fmt.Errorf("media: error renaming file at %s: %s", e.Path, err)
+	}
+
+	if !viper.GetBool("transcoding.keep_originals") {
+		if err := e.cleanup(); err != nil {
+			log.WithField("error", err).Errorf("media: error cleaning up unneeded files")
+		}
+	}
+
+	return nil
+}
+
+func (e *Entity) doTranscode() error {
 	if e.skipTranscode {
 		log.WithFields(log.Fields{
 			"filename": e.basename,
@@ -285,6 +320,7 @@ func (e *Entity) Transcode() error {
 
 	cmd := exec.Command("ffmpeg", args...)
 
+	var err error
 	start := time.Now()
 	e.Stats.CommandStdout, err = cmd.CombinedOutput()
 	e.Stats.Duration = time.Now().Sub(start)
@@ -295,17 +331,6 @@ func (e *Entity) Transcode() error {
 		return fmt.Errorf("media: error during transcoding: %s", err)
 	}
 
-	if err := e.rename(); err != nil {
-		e.abort()
-		return fmt.Errorf("media: error renaming file at %s: %s", e.Path, err)
-	}
-
-	if !viper.GetBool("transcoding.keep_originals") {
-		if err := e.cleanup(); err != nil {
-			log.WithField("error", err).Errorf("media: error cleaning up unneeded files")
-		}
-	}
-
 	e.TranscodeSuccess = true
 
 	log.WithFields(log.Fields{
@@ -314,6 +339,5 @@ func (e *Entity) Transcode() error {
 		"start_size": e.Stats.InitialSizeBytes,
 		"end_size":   e.Stats.EndSizeBytes,
 	}).Info("media: transcode complete")
-
 	return nil
 }
