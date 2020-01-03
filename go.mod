@@ -8,5 +8,6 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/viper v1.4.0
+	github.com/stretchr/testify v1.2.2
 	github.com/vansante/go-ffprobe v1.1.0
 )
