@@ -2,12 +2,14 @@ package media
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/Xiol/tvhtc2/internal/pkg/renamer"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -40,12 +42,15 @@ const (
 
 type Entity struct {
 	Details
-	Media            Type  `json:"type"`
-	Stats            Stats `json:"stats"`
-	TranscodeSuccess bool  `json:"transcode_success"`
+	DestPath         string `json:"dest_path"`
+	Media            Type   `json:"type"`
+	Stats            Stats  `json:"stats"`
+	TranscodeSuccess bool   `json:"transcode_success"`
 
+	renamer       renamer.Renamer
 	skipTranscode bool
 	basename      string
+	tmpfile       string
 }
 
 func NewEntity(details Details) (*Entity, error) {
@@ -53,10 +58,14 @@ func NewEntity(details Details) (*Entity, error) {
 		return nil, fmt.Errorf("media: path must not be empty")
 	}
 
-	return &Entity{
-		Details: details,
-		Stats:   Stats{},
-	}, nil
+	e := &Entity{
+		Details:  details,
+		Stats:    Stats{},
+		DestPath: details.Path,
+		renamer:  renamer.NewRenamer(),
+	}
+	e.tempFilename()
+	return e, nil
 }
 
 func (e *Entity) detectMediaType() error {
@@ -88,6 +97,7 @@ func (e *Entity) detectAudioOnly(stream *ffprobe.Stream) error {
 		e.skipTranscode = true
 	}
 
+	e.DestPath = strings.Replace(e.DestPath, filepath.Ext(e.Path), ".mp3", -1)
 	e.Media = MEDIA_AUDIO
 	return nil
 }
@@ -112,7 +122,7 @@ func (e *Entity) detectVideo(stream *ffprobe.Stream) error {
 	return nil
 }
 
-func (e *Entity) tempFilename() string {
+func (e *Entity) tempFilename() {
 	dir := filepath.Dir(e.Path)
 	var ext string
 	if e.Media == MEDIA_VIDEO || e.Media == MEDIA_H264_VIDEO {
@@ -125,9 +135,8 @@ func (e *Entity) tempFilename() string {
 		ext = ".mp3"
 	}
 
-	tmpPath := filepath.Join(dir, uuid.New().String()+ext)
-	log.WithField("path", tmpPath).Debug("media: temporary path for encoding media")
-	return tmpPath
+	e.tmpfile = filepath.Join(dir, uuid.New().String()+ext)
+	log.WithField("path", e.tmpfile).Debug("media: temporary path for encoding media")
 }
 
 func (e *Entity) ffmpegArgs() []string {
@@ -140,36 +149,77 @@ func (e *Entity) ffmpegArgs() []string {
 	return strings.Split(args, " ")
 }
 
-func (e *Entity) replace(src string) error {
-	dest := e.Path
-	if e.Media == MEDIA_AUDIO {
-		dest = strings.Replace(dest, filepath.Ext(e.Path), ".mp3", -1)
+func (e *Entity) rename() error {
+	newPath := e.renamer.Rename(e.DestPath)
+	log.WithFields(log.Fields{
+		"new_path": newPath,
+		"old_path": e.Path,
+	}).Debug("rename results")
+
+	if viper.GetBool("transcoding.skip_rename") {
+		log.Debug("skip_rename is set, not perfoming full renaming")
+		os.Rename(e.tmpfile, e.DestPath)
+		return nil
+	}
+	e.DestPath = newPath
+
+	// Create the renamed directory, if needed
+	dir, _ := filepath.Split(e.DestPath)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.Mkdir(dir, 0755); err != nil {
+			return fmt.Errorf("media: unable to create directory %s: %s", dir, err)
+		}
 	}
 
 	log.WithFields(log.Fields{
-		"src":  src,
-		"dest": dest,
+		"src":  e.Path,
+		"dest": e.DestPath,
 	}).Info("media: renaming transcoded file")
-	return os.Rename(src, dest)
+	os.Rename(e.tmpfile, e.DestPath)
+
+	return nil
 }
 
 func (e *Entity) cleanup() error {
-	if e.Media != MEDIA_AUDIO {
+	// If we're skipping renames, and the media is a video, then we'll have nothing
+	// to clean up, return early.
+	if viper.GetBool("transcoding.skip_rename") && e.Media != MEDIA_AUDIO {
 		return nil
 	}
 
 	log.WithField("path", e.Path).Info("media: removing original file")
 	if err := os.Remove(e.Path); err != nil {
-		return err
+		return fmt.Errorf("media: error removing original file: %s", err)
 	}
 
-	// Overwrite file path with the corrected path for an MP3
-	e.Path = strings.Replace(e.Path, filepath.Ext(e.Path), ".mp3", -1)
+	dir, _ := filepath.Split(e.Path)
+	if e.dirEmpty(dir) {
+		log.WithField("directory", dir).Info("media: directory empty, cleaning up")
+		if err := os.Remove(dir); err != nil {
+			return fmt.Errorf("media: error removing empty directory: %s", err)
+		}
+	}
+
 	return nil
 }
 
+func (e *Entity) dirEmpty(dir string) bool {
+	f, err := os.Open(dir)
+	if err != nil {
+		log.WithError(err).Error("error opening directory for read: %s", err)
+		return false
+	}
+	defer f.Close()
+
+	_, err = f.Readdirnames(1)
+	if err == io.EOF {
+		return true
+	}
+	return false
+}
+
 func (e *Entity) abort() error {
-	return os.Remove(e.tempFilename())
+	return os.Remove(e.tmpfile)
 }
 
 func (e *Entity) getSizeBytes(path string) uint64 {
@@ -185,8 +235,8 @@ func (e *Entity) SourcePath() string {
 	return e.Path
 }
 
-func (e *Entity) DestPath() string {
-	return e.tempFilename()
+func (e *Entity) DestinationPath() string {
+	return e.DestPath
 }
 
 func (e *Entity) IsTranscodable() bool {
@@ -221,17 +271,15 @@ func (e *Entity) Transcode() error {
 		return nil
 	}
 
-	tmpfile := e.tempFilename()
-
 	args := make([]string, 2)
 	args[0] = "-i"
 	args[1] = e.Path
 	args = append(args, e.ffmpegArgs()...)
-	args = append(args, []string{"-y", tmpfile}...)
+	args = append(args, []string{"-y", e.tmpfile}...)
 
 	log.WithFields(log.Fields{
 		"src_path":    e.Path,
-		"tmp_path":    tmpfile,
+		"tmp_path":    e.tmpfile,
 		"ffmpeg_args": args,
 	}).Info("media: transcoding file")
 
@@ -240,20 +288,22 @@ func (e *Entity) Transcode() error {
 	start := time.Now()
 	e.Stats.CommandStdout, err = cmd.CombinedOutput()
 	e.Stats.Duration = time.Now().Sub(start)
-	e.Stats.EndSizeBytes = e.getSizeBytes(tmpfile)
+	e.Stats.EndSizeBytes = e.getSizeBytes(e.tmpfile)
 
 	if err != nil {
 		e.abort()
 		return fmt.Errorf("media: error during transcoding: %s", err)
 	}
 
-	if err := e.replace(tmpfile); err != nil {
+	if err := e.rename(); err != nil {
 		e.abort()
-		return fmt.Errorf("media: error replacing file at %s: %s", e.Path, err)
+		return fmt.Errorf("media: error renaming file at %s: %s", e.Path, err)
 	}
 
-	if err := e.cleanup(); err != nil {
-		log.WithField("error", err).Errorf("media: error cleaning up unneeded files")
+	if !viper.GetBool("transcoding.keep_originals") {
+		if err := e.cleanup(); err != nil {
+			log.WithField("error", err).Errorf("media: error cleaning up unneeded files")
+		}
 	}
 
 	e.TranscodeSuccess = true
