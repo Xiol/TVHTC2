@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"github.com/vansante/go-ffprobe"
 )
 
@@ -18,12 +19,6 @@ type Stats struct {
 	InitialSizeBytes uint64        `json:"initial_size_bytes"`
 	EndSizeBytes     uint64        `json:"end_size_bytes"`
 	CommandStdout    []byte        `json:"command_stdout"`
-}
-
-type Config struct {
-	OnlySD    bool
-	AudioArgs []string
-	VideoArgs []string
 }
 
 type Details struct {
@@ -50,11 +45,10 @@ type Entity struct {
 	TranscodeSuccess bool  `json:"transcode_success"`
 
 	skipTranscode bool
-	config        Config
 	basename      string
 }
 
-func NewEntity(details Details, mediaConfig Config) (*Entity, error) {
+func NewEntity(details Details) (*Entity, error) {
 	if details.Path == "" {
 		return nil, fmt.Errorf("media: path must not be empty")
 	}
@@ -62,7 +56,6 @@ func NewEntity(details Details, mediaConfig Config) (*Entity, error) {
 	return &Entity{
 		Details: details,
 		Stats:   Stats{},
-		config:  mediaConfig,
 	}, nil
 }
 
@@ -109,7 +102,7 @@ func (e *Entity) detectVideo(stream *ffprobe.Stream) error {
 	switch stream.CodecName {
 	case "h264":
 		e.Media = MEDIA_H264_VIDEO
-		if e.config.OnlySD {
+		if viper.GetBool("transcoding.only_sd") {
 			log.Info("media: skipping transcode, only_sd is set")
 			e.skipTranscode = true
 		}
@@ -138,10 +131,13 @@ func (e *Entity) tempFilename() string {
 }
 
 func (e *Entity) ffmpegArgs() []string {
+	var args string
 	if e.Media == MEDIA_VIDEO || e.Media == MEDIA_H264_VIDEO {
-		return e.config.VideoArgs
+		args = viper.GetString("transcoding.video_args")
+	} else {
+		args = viper.GetString("transcoding.audio_args")
 	}
-	return e.config.AudioArgs
+	return strings.Split(args, " ")
 }
 
 func (e *Entity) replace(src string) error {

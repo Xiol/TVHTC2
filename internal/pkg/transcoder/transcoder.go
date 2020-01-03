@@ -11,30 +11,19 @@ import (
 	"github.com/Xiol/tvhtc2/internal/pkg/notify"
 	"github.com/Xiol/tvhtc2/internal/pkg/state"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
-
-type Config struct {
-	AudioArgs  []string
-	VideoArgs  []string
-	OnlySD     bool
-	Keep       bool
-	TrimPath   string
-	StatePath  string
-	SocketPath string
-}
 
 type Transcoder struct {
 	binaryPath          string
 	notificationHandler notify.Handler
-	config              Config
 	state               *state.State
 	incCloseCh          chan struct{}
 	trnCloseCh          chan struct{}
 }
 
-func New(conf Config, notificationHandler notify.Handler, options ...func(*Transcoder)) (Transcoder, error) {
+func New(notificationHandler notify.Handler, options ...func(*Transcoder)) (Transcoder, error) {
 	t := Transcoder{
-		config:              conf,
 		notificationHandler: notificationHandler,
 		incCloseCh:          make(chan struct{}),
 		trnCloseCh:          make(chan struct{}),
@@ -45,7 +34,7 @@ func New(conf Config, notificationHandler notify.Handler, options ...func(*Trans
 	}
 
 	var err error
-	if t.state, err = state.NewState(conf.StatePath); err != nil {
+	if t.state, err = state.NewState(viper.GetString("state_path")); err != nil {
 		return t, err
 	}
 
@@ -74,13 +63,14 @@ func (t *Transcoder) Do() error {
 }
 
 func (t *Transcoder) listen() error {
-	if err := os.RemoveAll(t.config.SocketPath); err != nil {
+	sockPath := viper.GetString("socket_path")
+	if err := os.RemoveAll(sockPath); err != nil {
 		return fmt.Errorf("transcoder: error removing old socket: %s", err)
 	}
 
-	listener, err := net.Listen("unix", t.config.SocketPath)
+	listener, err := net.Listen("unix", sockPath)
 	if err != nil {
-		return fmt.Errorf("transcoder: error listening at unix:%s: %s", t.config.SocketPath, err)
+		return fmt.Errorf("transcoder: error listening at unix:%s: %s", sockPath, err)
 	}
 
 	go func(l net.Listener, closeCh chan struct{}) {
@@ -128,11 +118,7 @@ func (t *Transcoder) transcodeHandler() {
 		case <-t.trnCloseCh:
 			return
 		case job := <-t.state.JobCh:
-			e, err := media.NewEntity(*job.Details, media.Config{
-				OnlySD:    t.config.OnlySD,
-				AudioArgs: t.config.AudioArgs,
-				VideoArgs: t.config.VideoArgs,
-			})
+			e, err := media.NewEntity(*job.Details)
 			if err != nil {
 				log.WithError(err).Error("transcoder: error creating entity")
 			}
