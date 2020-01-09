@@ -101,7 +101,7 @@ func (t *Transcoder) incomingHandler(conn net.Conn) {
 	var details media.Details
 	err = json.Unmarshal(data, &details)
 	if err != nil {
-		log.WithError(err).Error("transcoder: failed to unmarshal media details: %s", err)
+		log.WithError(err).Error("transcoder: failed to unmarshal media details")
 		return
 	}
 
@@ -124,19 +124,19 @@ func (t *Transcoder) transcodeHandler() {
 					"error": err,
 					"path":  job.Details.Path,
 				}).Error("transcoder: error creating entity")
-				return
+				continue
 			}
 
 			if err := e.Transcode(); err != nil {
 				log.WithError(err).Error("transcoder: error during transcode")
 				t.notify(e)
-				return
+				continue
 			}
 
 			if err := t.state.Done(job.ID); err != nil {
-				log.WithError(err).Error("transcoder: failed to mark job as done: %s", err)
+				log.WithError(err).Error("transcoder: failed to mark job as done")
 				t.notify(e)
-				return
+				continue
 			}
 
 			t.notify(e)
