@@ -36,3 +36,14 @@ notifications:
         - "8.out.of.10.cats.*"
         - "broadchurch"
         - "vera"
+
+rename:
+  enabled: true
+  remove_new: true
+  fix_spacing: true
+  fix_timestamps: true
+  # Rules are applied *after* the above generic rules and will be applied to both
+  # the containing directory and the filename itself.
+  rules:
+    - old: '^8 Out of 10 Cats Does.*'
+      new: 8 Out of 10 Cats Does Countdown

@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 var timestampMatcher *regexp.Regexp
@@ -29,10 +32,13 @@ type Renamer struct {
 // NewRenamer returns a Renamer that will fix timestamp formatting, remove 'New' from titles
 // and fix spacing.
 func NewRenamer() Renamer {
+	// We initailise the renamer from the config at this point to avoid configuration
+	// file changes altering the control flow mid-rename. A new instance of Renamer should
+	// be used for every entity.
 	return Renamer{
-		FixTimestamps: true,
-		RemoveNew:     true,
-		FixSpacing:    true,
+		FixTimestamps: viper.GetBool("rename.fix_timestamps"),
+		RemoveNew:     viper.GetBool("rename.remove_new"),
+		FixSpacing:    viper.GetBool("rename.fix_spacing"),
 	}
 }
 
@@ -41,6 +47,7 @@ func (r *Renamer) Rename(path string) string {
 	path = r.fixTimestamps(path)
 	path = r.removeNew(path)
 	path = r.fixSpacing(path)
+	path = r.applyRules(path)
 	return path
 }
 
@@ -112,4 +119,18 @@ func (r *Renamer) getTimestamp(path string) string {
 		return matches[0]
 	}
 	return ""
+}
+
+func (r *Renamer) applyRules(path string) string {
+	rules, err := LoadRules()
+	if err != nil {
+		log.WithError(err).Error("renamer: error loading rename rules")
+		return path
+	}
+
+	for i := range rules {
+		path = rules[i].Apply(path)
+	}
+
+	return path
 }

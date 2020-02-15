@@ -93,7 +93,7 @@ func (h *Handler) DoNotifications(entity *media.Entity) error {
 	for i := range n {
 		err := n[i].Fire()
 		if err != nil {
-			log.WithField("error", err.Error()).Error("notify: error during notification: %s", err)
+			log.WithError(err).Error("notify: error during notification")
 			errs = append(errs, err)
 		}
 	}

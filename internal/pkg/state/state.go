@@ -62,7 +62,7 @@ func (s *State) load() error {
 	l := len(s.Pending)
 	if l > defaultJobChannelSize {
 		if l > 4096 {
-			log.Fatalf("state: pending jobs >4096 (%s)?", l)
+			log.Fatalf("state: pending jobs >4096 (%d)?", l)
 		}
 		log.Debug("state: resizing job channel")
 		s.JobCh = make(chan *Job, l*2)

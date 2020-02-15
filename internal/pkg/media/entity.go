@@ -31,6 +31,12 @@ type Details struct {
 	Description string `json:"description"`
 }
 
+func (d *Details) Clean() {
+	d.Channel = strings.TrimSpace(d.Channel)
+	d.Title = strings.TrimSpace(d.Title)
+	d.Description = strings.TrimSpace(d.Description)
+}
+
 type Type int
 
 const (
@@ -51,12 +57,14 @@ type Entity struct {
 	skipTranscode bool
 	basename      string
 	tmpfile       string
+	err           error
 }
 
 func NewEntity(details Details) (*Entity, error) {
 	if details.Path == "" {
 		return nil, fmt.Errorf("media: path must not be empty")
 	}
+	details.Clean()
 
 	e := &Entity{
 		Details:  details,
@@ -176,8 +184,8 @@ func (e *Entity) rename() error {
 		src = e.Path
 	}
 
-	if viper.GetBool("transcoding.skip_rename") {
-		log.Debug("skip_rename is set, not perfoming full renaming")
+	if !viper.GetBool("rename.enabled") {
+		log.Debug("rename is not enabled, not perfoming full renaming")
 		os.Rename(src, e.DestPath)
 		return nil
 	}
@@ -205,11 +213,11 @@ func (e *Entity) rename() error {
 }
 
 func (e *Entity) cleanup() error {
-	// If we're skipping renames, and the media is a video, then we'll have nothing
+	// If we're not doing renames, and the media is a video, then we'll have nothing
 	// to clean up, return early. If we've skipped transcoding but we're doing renames,
 	// then we'll also have nothing to cleanup, as the file will have been moved.
-	skipRename := viper.GetBool("transcoding.skip_rename")
-	if (skipRename && e.Media != MEDIA_AUDIO) || (!skipRename && e.skipTranscode) {
+	rename := viper.GetBool("rename.enabled")
+	if (!rename && e.Media != MEDIA_AUDIO) || (rename && e.skipTranscode) {
 		return e.cleanDir()
 	}
 
@@ -235,7 +243,7 @@ func (e *Entity) cleanDir() error {
 func (e *Entity) dirEmpty(dir string) bool {
 	f, err := os.Open(dir)
 	if err != nil {
-		log.WithError(err).Error("error opening directory for read: %s", err)
+		log.WithError(err).Error("error opening directory for read")
 		return false
 	}
 	defer f.Close()
@@ -274,7 +282,15 @@ func (e *Entity) IsTranscodable() bool {
 }
 
 func (e *Entity) Ok() bool {
-	return e.Status == "OK" && (e.skipTranscode || e.TranscodeSuccess)
+	return e.Status == "OK" && (e.skipTranscode || e.TranscodeSuccess) && e.Error() == nil
+}
+
+func (e *Entity) Error() error {
+	return e.err
+}
+
+func (e *Entity) SetError(err error) {
+	e.err = err
 }
 
 func (e *Entity) Transcode() error {

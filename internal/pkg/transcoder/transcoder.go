@@ -129,12 +129,14 @@ func (t *Transcoder) transcodeHandler() {
 
 			if err := e.Transcode(); err != nil {
 				log.WithError(err).Error("transcoder: error during transcode")
+				e.SetError(fmt.Errorf("transcoder: error during transcode: %s", err))
 				t.notify(e)
 				continue
 			}
 
 			if err := t.state.Done(job.ID); err != nil {
 				log.WithError(err).Error("transcoder: failed to mark job as done")
+				e.SetError(fmt.Errorf("transcoder: failed to mark job as done: %s", err))
 				t.notify(e)
 				continue
 			}

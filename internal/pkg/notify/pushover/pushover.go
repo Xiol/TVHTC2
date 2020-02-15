@@ -51,13 +51,17 @@ func NewMessage(apiToken, user string, entity *media.Entity) Message {
 	sb := strings.Builder{}
 	sb.WriteString(strings.TrimSpace(entity.Description))
 	sb.WriteString("\n\n")
-	if entity.IsTranscodable() {
-		sb.WriteString(fmt.Sprintf("Transcode completed in %s minutes, size change %s->%s. Path: %s",
-			entity.Stats.Duration.Round(time.Minute), humanize.IBytes(entity.Stats.InitialSizeBytes),
-			humanize.IBytes(entity.Stats.EndSizeBytes), entity.DestPath))
+	if entity.Ok() {
+		if entity.IsTranscodable() {
+			sb.WriteString(fmt.Sprintf("Transcode completed in %s minutes, size change %s->%s. Path: %s",
+				entity.Stats.Duration.Round(time.Minute), humanize.IBytes(entity.Stats.InitialSizeBytes),
+				humanize.IBytes(entity.Stats.EndSizeBytes), entity.DestPath))
+		} else {
+			sb.WriteString(fmt.Sprintf("Skipped transcoding. Size %s. Path: %s",
+				humanize.IBytes(entity.Stats.InitialSizeBytes), entity.DestPath))
+		}
 	} else {
-		sb.WriteString(fmt.Sprintf("Skipped transcoding. Size %s. Path: %s",
-			humanize.IBytes(entity.Stats.InitialSizeBytes), entity.DestPath))
+		sb.WriteString(fmt.Sprintf("Errors encountered when processing media: %s", entity.Error()))
 	}
 
 	return Message{
@@ -100,7 +104,7 @@ func (m Message) Fire() error {
 	}
 
 	if resp.StatusCode >= 500 {
-		return fmt.Errorf("pushover: status code %d from Pushover API indicates temporary failure, but not retrying")
+		return fmt.Errorf("pushover: status code %d from Pushover API indicates temporary failure, but not retrying", resp.StatusCode)
 	}
 
 	pr := Response{}

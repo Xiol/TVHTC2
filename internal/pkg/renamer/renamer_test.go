@@ -7,6 +7,7 @@ import (
 
 func TestRenamer_fixTimestamps(t *testing.T) {
 	r := NewRenamer()
+	r.FixTimestamps = true
 
 	orig := "/srv/storage/dvr/Dracula/Dracula2020-01-0121-00.mkv"
 	expected := "/srv/storage/dvr/Dracula/Dracula2020-01-01T2100.mkv"
@@ -16,6 +17,7 @@ func TestRenamer_fixTimestamps(t *testing.T) {
 
 func TestRenamer_removeNew(t *testing.T) {
 	r := NewRenamer()
+	r.RemoveNew = true
 
 	orig := "/srv/storage/dvr/New_-Bancroft/New_-Bancroft2020-01-0121-00.mkv"
 	expected := "/srv/storage/dvr/Bancroft/Bancroft2020-01-0121-00.mkv"
@@ -26,6 +28,8 @@ func TestRenamer_removeNew(t *testing.T) {
 func TestRenamer_fixSpacing(t *testing.T) {
 	r := NewRenamer()
 	r.FixTimestamps = false
+	r.RemoveNew = true
+	r.FixSpacing = true
 
 	tests := [][]string{
 		[]string{
