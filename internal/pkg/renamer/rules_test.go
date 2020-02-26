@@ -1,8 +1,9 @@
 package renamer
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRuleApply(t *testing.T) {
@@ -22,6 +23,12 @@ func TestRuleApply(t *testing.T) {
 		Old: "media",
 		New: "foobar",
 	}
-
 	assert.Equal(t, "/srv/storage/media/foobar/foobar", r.Apply("/srv/storage/media/media/media"))
+
+	r = Rule{
+		Old: "Live - The Last Leg",
+		New: "The Last Leg",
+	}
+	assert.Equal(t, "/srv/storage/media/DVR/The Last Leg/The Last Leg - 2020-02-21T2200.mkv",
+		r.Apply("/srv/storage/media/DVR/Live - The Last Leg/Live - The Last Leg - 2020-02-21T2200.mkv"))
 }
