@@ -3,16 +3,23 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/Xiol/tvhtc2/internal/pkg/renamer"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/Xiol/tvhtc2/internal/pkg/config"
+	"github.com/Xiol/tvhtc2/internal/pkg/renamer"
 )
 
 func main() {
 	path := flag.String("path", "", "Path to file to rename")
 	dry := flag.Bool("dry-run", false, "Don't move anything, just print what would happen")
 	flag.Parse()
+
+	if err := config.InitConfig(); err != nil {
+		fmt.Printf("error: failed to load config: %s", err)
+		os.Exit(1)
+	}
 
 	if *path == "" {
 		fmt.Printf("error: no path provided\n")
