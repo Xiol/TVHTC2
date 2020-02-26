@@ -30,7 +30,7 @@ func (r *Rule) Apply(path string) string {
 
 	// only apply the rules to the directory and file, not all of the path
 	elems := strings.Split(path, string(filepath.Separator))
-	prefixLen := len(elems)-2
+	prefixLen := len(elems) - 2
 	if prefixLen < 0 {
 		prefixLen = 0
 	}
@@ -54,7 +54,7 @@ func (r *Rule) compileMatcher() error {
 		return nil
 	}
 
-	r.oldMatcher, err = regexp.Compile("(?i)"+r.Old)
+	r.oldMatcher, err = regexp.Compile("(?i)" + r.Old)
 	if err != nil {
 		return err
 	}
