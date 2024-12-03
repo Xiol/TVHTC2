@@ -14,7 +14,3 @@ tvhtc2-client:
 tvhtc2-renamer:
 	go build -ldflags '-s -w' -o bin/tvhtc2-renamer ./cmd/tvhtc2-renamer
 
-upx:
-	upx -8 bin/tvhtc2
-	upx -8 bin/tvhtc2-client
-	upx -8 bin/tvhtc2-renamer
