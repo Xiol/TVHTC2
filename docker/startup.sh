@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # Copy tvhtc2-client to /srv/tvhtc2, which should be a volume shared
 # between this container and the tvheadend container. This will allow
 # tvheadend to access the tvhtc2-client binary (along with the socket).
